@@ -98,6 +98,25 @@ function init()
         end
     }
 
+    params:add{
+        id="sim_grav_exponent",
+        name="gravity exponent",
+        type="control",
+        controlspec=controlspec.def{
+              min = 0.1,
+              max = 5,
+              warp = 'lin',
+              step = 0.1,
+              default = 1.5,
+              quantum = 0.1/(5-0.1),
+              wrap = false
+          },
+        -- formatter=function(param) return string.format("%.3f", param:get()) end,
+        action=function(v)
+            sim.gravExponent = v
+        end
+    }
+
     integrator_choices = tab.sort(sim.integrators)
     params:add{
         id="sim_integrator",
@@ -403,7 +422,7 @@ function initSim()
     end
 
     sim = Simulation:new_rand(3)
-    sim.gravExponent = 1.5
+    sim.gravExponent = params:get("sim_grav_exponent")
     sim.dt = params:get("sim_dt")
     sim.integrator = integrator_choices[params:get("sim_integrator")]
     sim_metro = metro.init(updateSim,1/120)
