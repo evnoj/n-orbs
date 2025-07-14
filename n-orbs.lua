@@ -6,6 +6,7 @@ Simulation = include("nbody-lua-lib/init")
 show_tps = true
 tps = 0
 -- max_tps = 5000
+sim = {}
 max_tps = 200
 fade_counter = 0
 ready_draw = true
@@ -75,6 +76,25 @@ function init()
         behavior="trigger",
         action=function()
             initSim()
+        end
+    }
+
+    params:add{
+        id="sim_dt",
+        name="sim time step",
+        type="control",
+        controlspec=controlspec.def{
+              min = 0.001,
+              max = 0.1,
+              warp = 'exp',
+              step = 0.001,
+              default = 0.01,
+              -- quantum = 0.005,
+              wrap = false
+          },
+        formatter=function(param) return string.format("%.3f", param:get()) end,
+        action=function(dt)
+            sim.dt = dt
         end
     }
 
@@ -372,7 +392,7 @@ function initSim()
 
     sim = Simulation:new_rand(3)
     sim.gravExponent = 1.5
-    sim.dt = 0.01
+    sim.dt = params:get("sim_dt")
     -- sim.dt = 0.015
     sim_metro = metro.init(updateSim,1/120)
     sim_id = sim_metro.id
