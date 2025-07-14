@@ -6,7 +6,7 @@ Simulation = include("nbody-lua-lib/init")
 show_tps = true
 tps = 0
 -- max_tps = 5000
-sim = {}
+sim = Simulation:new()
 max_tps = 200
 fade_counter = 0
 ready_draw = true
@@ -81,7 +81,7 @@ function init()
 
     params:add{
         id="sim_dt",
-        name="sim time step",
+        name="time step",
         type="control",
         controlspec=controlspec.def{
               min = 0.001,
@@ -95,6 +95,18 @@ function init()
         formatter=function(param) return string.format("%.3f", param:get()) end,
         action=function(dt)
             sim.dt = dt
+        end
+    }
+
+    integrator_choices = tab.sort(sim.integrators)
+    params:add{
+        id="sim_integrator",
+        name="integrator",
+        type="option",
+        options=integrator_choices,
+        default=3, -- leapfrog
+        action=function(integrator)
+            sim.integrator = integrator_choices[integrator]
         end
     }
 
@@ -393,7 +405,7 @@ function initSim()
     sim = Simulation:new_rand(3)
     sim.gravExponent = 1.5
     sim.dt = params:get("sim_dt")
-    -- sim.dt = 0.015
+    sim.integrator = integrator_choices[params:get("sim_integrator")]
     sim_metro = metro.init(updateSim,1/120)
     sim_id = sim_metro.id
     sim_metro:start()
