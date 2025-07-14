@@ -129,6 +129,25 @@ function init()
         end
     }
 
+    params:add{
+        id="sim_softening",
+        name="softening",
+        type="control",
+        controlspec=controlspec.def{
+              min = 0.001,
+              max = 0.1,
+              warp = 'exp',
+              step = 0.001,
+              default = 0.01,
+              -- quantum = 0.005,
+              wrap = false
+          },
+        formatter=function(param) return string.format("%.3f", param:get()) end,
+        action=function(v)
+            sim.softening = v
+        end
+    }
+
     params:add_separator("mod_dests", "modulation destinations")
     for dest,outs in pairs(mod_dests) do
         if type(outs) == 'table' then
@@ -422,9 +441,10 @@ function initSim()
     end
 
     sim = Simulation:new_rand(3)
-    sim.gravExponent = params:get("sim_grav_exponent")
     sim.dt = params:get("sim_dt")
+    sim.gravExponent = params:get("sim_grav_exponent")
     sim.integrator = integrator_choices[params:get("sim_integrator")]
+    sim.softening = params:get("sim_softening")
     sim_metro = metro.init(updateSim,1/120)
     sim_id = sim_metro.id
     sim_metro:start()
