@@ -80,6 +80,24 @@ function init()
     }
 
     params:add{
+        id="sim_tps",
+        name="ticks per second",
+        type="number",
+        min=1,
+        max=600,
+        default=120,
+        action=function(tps)
+            if sim_metro_id then
+                metro.free(sim_metro_id)
+                sim_metro_id = nil
+                sim_metro = metro.init(updateSim,1/tps)
+                sim_metro_id = sim_metro.id
+                sim_metro:start()
+            end
+        end
+    }
+
+    params:add{
         id="sim_dt",
         name="time step",
         type="control",
@@ -435,9 +453,9 @@ drawBody = {
 }
 
 function initSim()
-    if sim_id then
-        metro.free(sim_id)
-        sim_id = nil
+    if sim_metro_id then
+        metro.free(sim_metro_id)
+        sim_metro_id = nil
     end
 
     sim = Simulation:new_rand(3)
@@ -445,8 +463,8 @@ function initSim()
     sim.gravExponent = params:get("sim_grav_exponent")
     sim.integrator = integrator_choices[params:get("sim_integrator")]
     sim.softening = params:get("sim_softening")
-    sim_metro = metro.init(updateSim,1/120)
-    sim_id = sim_metro.id
+    sim_metro = metro.init(updateSim,1/params:get("sim_tps"))
+    sim_metro_id = sim_metro.id
     sim_metro:start()
 end
 
