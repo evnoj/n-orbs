@@ -17,50 +17,60 @@ frames = 0
 
 function init()
     -- available traits to map outputs to
+    -- key is dest name
+    -- value is either an array-style table of "outputs", or boolean true if it stands alone
     mod_dests = {
         crow = {1, 2, 3, 4},
         txo = {1, 2, 3, 4}
     }
     traits = {"x", "y", "r", "vel", "acc"}
+    mod_scale_traits = {"xy", "r", "speed"}
+    -- mod_scale_types = {"v_5pp_uni", "v_10pp_uni", "v_10pp_bi"}
+    -- mod_scale_matrix = {}
+
+    -- for _,trait in ipairs(mod_scale_traits) do
+    --     mod_scale_matrix[trait] = {}
+    --     for _,type in ipairs(mod_scale_types) do
+    --         mod_scale_matrix[trait][type] = params:get(trait.."_mod_scale") *
+    --     end
+    -- end
+
     lit_pixels = {}
-    -- given a body, return the trait
+    -- given a body, take some action based on one of its traits
     trait_handlers = {
         crow = {
             x = function(body, out)
-                crow.output[out].volts = body.pos[1] * 7
+                crow.output[out].volts = body.pos[1] * params:get("xy_mod_scale") * 5
             end,
             y = function(body, out)
-                crow.output[out].volts = body.pos[2] * 7
+                crow.output[out].volts = body.pos[2] * params:get("xy_mod_scale") * 5
             end,
             r = function(body, out)
-                crow.output[out].volts = body.pos:length() * 6
+                crow.output[out].volts = body.pos:length() * params:get("r_mod_scale") * 5
             end,
             vel = function(body, out)
-                -- print(body.vel:length())
-                crow.output[out].volts = body.vel:length()
+                crow.output[out].volts = body.vel:length() * params:get("speed_mod_scale")
             end,
             acc = function(body, out)
                 -- print(body.acc:length())
-                crow.output[out].volts = body.acc:length()
+                crow.output[out].volts = body.acc:length() * params:get("speed_mod_scale")
             end
         },
         txo = {
             x = function(body, out)
-                crow.ii.txo.cv(out, body.pos[1] * 7)
+                crow.ii.txo.cv(out, body.pos[1] * params:get("xy_mod_scale") * 5)
             end,
             y = function(body, out)
-                crow.ii.txo.cv(out, body.pos[2] * 7)
+                crow.ii.txo.cv(out, body.pos[2] * params:get("xy_mod_scale") * 5)
             end,
             r = function(body, out)
-                crow.ii.txo.cv(out, body.pos:length() * 6)
+                crow.ii.txo.cv(out, body.pos:length() * params:get("r_mod_scale"), 5)
             end,
             vel = function(body, out)
-                -- print(body.vel:length())
-                crow.ii.txo.cv(out, body.vel:length())
+                crow.ii.txo.cv(out, body.vel:length() * params:get("speed_mod_scale"))
             end,
             acc = function(body, out)
-                -- print(body.acc:length())
-                crow.ii.txo.cv(out, body.acc:length())
+                crow.ii.txo.cv(out, body.acc:length() * params:get("speed_mod_scale"))
             end
         }
     }
@@ -185,6 +195,24 @@ function init()
     }
 
     params:add_separator("mod_dests", "modulation destinations")
+
+    for _,trait in ipairs(mod_scale_traits) do
+        params:add{
+            id=trait.."_mod_scale",
+            name=trait.." scale",
+            type="control",
+            controlspec=controlspec.def{
+                min = 0.1,
+                max = 5,
+                warp = 'lin',
+                step = 0.1,
+                default = 1,
+                quantum = 0.1/(5-0.1),
+                wrap = false
+            }
+        }
+    end
+
     for dest,outs in pairs(mod_dests) do
         if type(outs) == 'table' then
             for _,out in ipairs(outs) do
@@ -216,6 +244,59 @@ function newTraitHandler(trait, target, out)
     return function(body)
         trait_handlers[target][trait](body, out)
     end
+end
+
+-- returns 1 for true, 0 for false
+function isDestActive(dest)
+    local outs = mod_dests[dest]
+
+    if type(outs) == "table" then
+        for _,out in ipairs(outs) do
+           if params:get("dest_"..dest.."_"..out) == 1 then
+               return 1
+           end
+        end
+    else
+        if params:get("dest_"..dest) == 1 then
+            return 1
+        end
+    end
+
+    return 0
+end
+
+function addDestHeader(dest)
+    local base_id = "dest_"..dest
+    local header_id = base_id.."_header"
+    local base_name = dest
+
+    params:add{
+        id=header_id,
+        name="▶ "..base_name,
+        type="binary",
+        behavior="toggle",
+        default=isDestActive(dest),
+        action=function(z)
+            local outs = mod_dests[dest]
+
+            if z == 1 then
+                params:lookup_param(header_id).name = "▼ "..base_name
+
+                if type(outs) == "table" then
+                    for _,out in ipairs(outs) do
+                       if params:get("dest_"..dest.."_"..out) == 1 then
+                           return 1
+                       end
+                    end
+                else
+                    if params:get("dest_"..dest) == 1 then
+                        return 1
+                    end
+                end
+
+            end
+        end
+    }
 end
 
 function addDestParam(dest, out)
@@ -335,8 +416,8 @@ function redraw()
         local y = body.pos[2] * zoom + 31
         local r = 2
         -- screen.circle(x, y, r)
-        -- screen.close()
-        -- screen.stroke()
+        screen.close()
+        screen.stroke()
 
         local width = r*4
         local ix = math.floor(x+0.5)
