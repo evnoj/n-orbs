@@ -80,6 +80,24 @@ function init()
     }
 
     params:add{
+        id="viewport_zoom",
+        name="zoom",
+        type="control",
+        controlspec=controlspec.def{
+            min = 0.1,
+            max = 5,
+            warp = 'lin',
+            step = 0.1,
+            default = 1,
+            quantum = 0.1/(5-0.1),
+            wrap = false
+        },
+        action=function(v)
+            zoom = v * 26
+        end
+    }
+
+    params:add{
         id="sim_tps",
         name="ticks per second",
         type="number",
@@ -102,14 +120,14 @@ function init()
         name="time step",
         type="control",
         controlspec=controlspec.def{
-              min = 0.001,
-              max = 0.1,
-              warp = 'exp',
-              step = 0.001,
-              default = 0.01,
-              -- quantum = 0.005,
-              wrap = false
-          },
+            min = 0.001,
+            max = 0.1,
+            warp = 'exp',
+            step = 0.001,
+            default = 0.01,
+            -- quantum = 0.005,
+            wrap = false
+        },
         formatter=function(param) return string.format("%.3f", param:get()) end,
         action=function(dt)
             sim.dt = dt
@@ -121,14 +139,14 @@ function init()
         name="gravity exponent",
         type="control",
         controlspec=controlspec.def{
-              min = 0.1,
-              max = 5,
-              warp = 'lin',
-              step = 0.1,
-              default = 1.5,
-              quantum = 0.1/(5-0.1),
-              wrap = false
-          },
+            min = 0.1,
+            max = 5,
+            warp = 'lin',
+            step = 0.1,
+            default = 1.5,
+            quantum = 0.1/(5-0.1),
+            wrap = false
+        },
         -- formatter=function(param) return string.format("%.3f", param:get()) end,
         action=function(v)
             sim.gravExponent = v
@@ -152,14 +170,14 @@ function init()
         name="softening",
         type="control",
         controlspec=controlspec.def{
-              min = 0.001,
-              max = 0.1,
-              warp = 'exp',
-              step = 0.001,
-              default = 0.01,
-              -- quantum = 0.005,
-              wrap = false
-          },
+            min = 0.001,
+            max = 0.1,
+            warp = 'exp',
+            step = 0.001,
+            default = 0.01,
+            -- quantum = 0.005,
+            wrap = false
+        },
         formatter=function(param) return string.format("%.3f", param:get()) end,
         action=function(v)
             sim.softening = v
@@ -176,6 +194,8 @@ function init()
            addDestParam(dest)
         end
     end
+
+    params:bang()
 
     screen.aa(1)
     screen.line_width(.1)
@@ -311,12 +331,12 @@ function redraw()
 
     for i, body in ipairs(sim.bodies) do
         drawBody.ring(body)
-        local x = body.pos[1] * 26 + 63
-        local y = body.pos[2] * 26 + 31
+        local x = body.pos[1] * zoom + 63
+        local y = body.pos[2] * zoom + 31
         local r = 2
-        screen.circle(x, y, r)
-        screen.close()
-        screen.stroke()
+        -- screen.circle(x, y, r)
+        -- screen.close()
+        -- screen.stroke()
 
         local width = r*4
         local ix = math.floor(x+0.5)
@@ -417,19 +437,19 @@ drawBodies = {
     connectedPoints = function()
         for i=1, #sim.bodies - 1 do
             local bi = sim.bodies[i]
-            screen.move(bi.pos[1] * 100 + 63, bi.pos[2] * 100 + 31)
+            screen.move(bi.pos[1] * zoom + 63, bi.pos[2] * zoom + 31)
             screen.line(63,31)
             screen.close()
             screen.stroke()
             for j=i+1, #sim.bodies do
                 local bj = sim.bodies[j]
-                screen.move(bi.pos[1] * 100 + 63, bi.pos[2] * 100 + 31)
-                screen.line(bj.pos[1] * 100 + 63, bj.pos[2] * 100 + 31)
+                screen.move(bi.pos[1] * zoom + 63, bi.pos[2] * zoom + 31)
+                screen.line(bj.pos[1] * zoom + 63, bj.pos[2] * zoom + 31)
                 screen.close()
                 screen.stroke()
             end
         end
-        screen.move(sim.bodies[#sim.bodies].pos[1] * 100 + 63, sim.bodies[#sim.bodies].pos[2] * 100 + 31)
+        screen.move(sim.bodies[#sim.bodies].pos[1] * zoom + 63, sim.bodies[#sim.bodies].pos[2] * zoom + 31)
         screen.line(63,31)
         screen.close()
         screen.stroke()
@@ -439,14 +459,14 @@ drawBodies = {
 drawBody = {
     circle = function(body)
         screen.level(15)
-        screen.circle(body.pos[1] * 26 + 63, body.pos[2] * 26 + 31, 2)
+        screen.circle(body.pos[1] * zoom + 63, body.pos[2] * zoom + 31, 2)
         screen.close()
         screen.fill()
         screen.stroke()
     end,
     ring = function(body)
         screen.level(15)
-        screen.circle(body.pos[1] * 26 + 63, body.pos[2] * 26 + 31, 2.7)
+        screen.circle(body.pos[1] * zoom + 63, body.pos[2] * zoom + 31, 2.7)
         screen.close()
         screen.stroke()
     end
