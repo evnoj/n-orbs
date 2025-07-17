@@ -12,6 +12,7 @@ fade_counter = 0
 ready_draw = true
 ready_sim = true
 prev_time = os.time()
+auto_damp = false
 ticks = 0
 frames = 0
 
@@ -191,6 +192,40 @@ function init()
         formatter=function(param) return string.format("%.3f", param:get()) end,
         action=function(v)
             sim.softening = v
+        end
+    }
+
+    params:add{
+        id="sim_dampening",
+        name="dampening",
+        type="control",
+        controlspec=controlspec.def{
+            min = -0.1,
+            max = 0.1,
+            warp = 'lin',
+            step = 0.0001,
+            default = 0,
+            quantum = 0.0001 / (0.2),
+            wrap = false
+        },
+        formatter=function(param) return string.format("%.4f", param:get()) end,
+        action=function(v)
+            sim.dampening = v
+        end
+    }
+
+    params:add{
+        id="auto_damp",
+        name="auto damp",
+        type="binary",
+        behavior="toggle",
+        default=0,
+        action=function(z)
+            if z == 1 then
+                auto_damp = true
+            else
+                auto_damp = false
+            end
         end
     }
 
@@ -564,9 +599,25 @@ function initSim()
     sim.gravExponent = params:get("sim_grav_exponent")
     sim.integrator = integrator_choices[params:get("sim_integrator")]
     sim.softening = params:get("sim_softening")
+    sim.dampening = params:get("sim_dampening")
     sim_metro = metro.init(updateSim,1/params:get("sim_tps"))
     sim_metro_id = sim_metro.id
     sim_metro:start()
+
+    if sim_energy_metro then
+        metro.free(sim_energy_metro.id)
+    end
+
+    energy_readings = {}
+    energy_baseline_readings = {}
+    energy_sum = 0
+    energy_avg = 0
+    energy_baseline = 0
+    energy_baseline_sum = 0
+    sim_energy_metro = metro.init(calculateSimEnergy, 1)
+    sim_energy_baseline_metro = metro.init(calculateSimEnergyBaseline, 1/20)
+    sim_energy_metro:start()
+    sim_energy_baseline_metro:start()
 end
 
 function updateSim()
@@ -577,6 +628,40 @@ function updateSim()
         for _,callback in pairs(callbacks) do
             callback(sim.bodies[n])
         end
+    end
+end
+
+function calculateSimEnergy()
+    local energy = sim:getTotalEnergy()
+    energy_sum = energy_sum + energy
+    table.insert(energy_readings, energy)
+
+    if #energy_readings > 10 then
+        energy_sum = energy_sum - table.remove(energy_readings,1)
+        energy_avg = energy_sum / 10
+
+        if auto_damp then
+            if energy_avg < energy_baseline * 1.75 and sim.dampening > -0.0010 then
+                sim.dampening = sim.dampening - 0.0001
+            elseif energy_avg > energy_baseline * 0.75 and sim.dampening < 0.0010 then
+                sim.dampening = sim.dampening + 0.0001
+            elseif sim.dampening > 0 then
+                sim.dampening = sim.dampening - 0.0001
+            elseif sim.dampening < 0 then
+                sim.dampening = sim.dampening + 0.0001
+            end
+        end
+    end
+end
+
+function calculateSimEnergyBaseline()
+    local energy = sim:getTotalEnergy()
+    energy_baseline_sum = energy_baseline_sum + energy
+    table.insert(energy_baseline_readings, energy)
+
+    if #energy_baseline_readings == 20 then
+        energy_baseline = energy_baseline_sum / 20
+        metro.free(sim_energy_baseline_metro.id)
     end
 end
 
