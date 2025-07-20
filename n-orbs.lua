@@ -80,6 +80,19 @@ function init()
     -- callback on every tick
     body_callbacks = {}
 
+    local enc_params = {}
+
+    -- allows keys and encoders to be mapped to nothing
+    local empty_param = {
+        id="empty_param",
+        name="none",
+        type="number",
+        min=0,
+        max=0
+    }
+    params:add(empty_param)
+    table.insert(enc_params, empty_param)
+
     params:add{
         id="init_sim",
         name="init sim",
@@ -90,23 +103,25 @@ function init()
         end
     }
 
-    params:add{
+    local viewport_zoom = {
         id="viewport_zoom",
         name="zoom",
         type="control",
         controlspec=controlspec.def{
-            min = 0.1,
-            max = 5,
-            warp = 'lin',
-            step = 0.1,
+            min = 0.01,
+            max = 10,
+            warp = 'exp',
+            step = 0.01,
             default = 1,
-            quantum = 0.1/(5-0.1),
+            quantum = 0.01/(10-0.01),
             wrap = false
         },
         action=function(v)
             zoom = v * 26
         end
     }
+    table.insert(enc_params, viewport_zoom)
+    params:add(viewport_zoom)
 
     params:add{
         id="sim_tps",
@@ -126,13 +141,13 @@ function init()
         end
     }
 
-    params:add{
+    local sim_dt = {
         id="sim_dt",
         name="time step",
         type="control",
         controlspec=controlspec.def{
             min = 0.001,
-            max = 0.1,
+            max = 0.5,
             warp = 'exp',
             step = 0.001,
             default = 0.01,
@@ -144,8 +159,11 @@ function init()
             sim.dt = dt
         end
     }
+    table.insert(enc_params, sim_dt)
+    params:add(sim_dt)
 
-    params:add{
+
+    local sim_grav_exponent = {
         id="sim_grav_exponent",
         name="gravity exponent",
         type="control",
@@ -163,6 +181,8 @@ function init()
             sim.gravExponent = v
         end
     }
+    table.insert(enc_params, sim_grav_exponent)
+    params:add(sim_grav_exponent)
 
     integrator_choices = tab.sort(sim.integrators)
     params:add{
@@ -176,13 +196,13 @@ function init()
         end
     }
 
-    params:add{
+    local sim_softening = {
         id="sim_softening",
         name="softening",
         type="control",
         controlspec=controlspec.def{
             min = 0.001,
-            max = 0.1,
+            max = 1,
             warp = 'exp',
             step = 0.001,
             default = 0.01,
@@ -194,8 +214,10 @@ function init()
             sim.softening = v
         end
     }
+    table.insert(enc_params, sim_softening)
+    params:add(sim_softening)
 
-    params:add{
+    local sim_dampening = {
         id="sim_dampening",
         name="dampening",
         type="control",
@@ -213,6 +235,8 @@ function init()
             sim.dampening = v
         end
     }
+    table.insert(enc_params, sim_dampening)
+    params:add(sim_dampening)
 
     params:add{
         id="auto_damp",
@@ -228,6 +252,38 @@ function init()
             end
         end
     }
+
+    local enc_options = {}
+    enc_option_to_id = {}
+    for i,p in ipairs(enc_params) do
+        table.insert(enc_options, p.name)
+        enc_option_to_id[i] = p.id
+    end
+
+    local e1_action = {
+        id="e1_action",
+        name="e1",
+        type="option",
+        options=enc_options,
+        default = 1, -- none
+    }
+    params:add(e1_action)
+    local e2_action = {
+        id="e2_action",
+        name="e2",
+        type="option",
+        options=enc_options,
+        default = 1, -- none
+    }
+    params:add(e2_action)
+    local e3_action = {
+        id="e3_action",
+        name="e3",
+        type="option",
+        options=enc_options,
+        default = 1, -- none
+    }
+    params:add(e3_action)
 
     params:add_separator("mod_dests", "modulation destinations")
 
@@ -262,6 +318,8 @@ function init()
 
     screen.aa(1)
     screen.line_width(.1)
+    screen.clear()
+    screen.update()
     draw_ready_metro = metro.init(readyDraw,1/60)
     draw_ready_metro:start()
     screen_ping_metro = metro.init(function()
@@ -688,3 +746,7 @@ function tableSize(t)
     return n
 end
 
+function enc(n, delta)
+    local id = enc_option_to_id[params:get("e"..n.."_action")]
+    params:delta(id, delta)
+end
