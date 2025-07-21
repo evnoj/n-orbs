@@ -504,24 +504,7 @@ function redraw()
 
     -- drawBodies.eachBody(drawBody.ring)
     -- drawBodies.connectedPoints()
-
-    for i, body in ipairs(sim.bodies) do
-        drawBody.ring(body)
-        local x = body.pos[1] * zoom + 63
-        local y = body.pos[2] * zoom + 31
-        local r = 2
-        -- screen.circle(x, y, r)
-        screen.close()
-        screen.stroke()
-
-        local width = r*4
-        local ix = math.floor(x+0.5)
-        local iy = math.floor(y+0.5)
-        local wx = math.max(0, math.min(127, ix-(r*2)))
-        local wy = math.max(0, math.min(63, iy-(r*2)))
-        -- print("wx:"..wx..", wy:"..wy..", w:"..width)
-        addToLitPixels(wx, wy, width, width)
-    end
+    drawBodies.eachBodyLitPixels(drawBody.ring)
 
     -- if show_tps then
     --     if sim.ticks % 100 == 0 then
@@ -536,7 +519,7 @@ function redraw()
 end
 my_redraw = redraw -- provides a way to check if in system menu
 
--- for all pixels in defined area, add them to lit_pixels
+-- for all pixels in defined area, add them to lit_pixels with their current level
 function addToLitPixels(x,y,l,w)
     local buf = screen.peek(x, y, l, w)
 
@@ -581,68 +564,97 @@ fadeEffect = {
     darkenPixels = function()
         -- if fade_counter == 0 then
         local remove_pixels = {}
-            for c,level in pairs(lit_pixels) do
-                local level_d = level - 1
-                local x = c % 128
-                local y = math.floor(c / 128)
-                screen.level(level_d)
-                screen.pixel(x, y)
-                screen.fill()
-                if level_d > 0 then
-                    lit_pixels[c] = level_d
-                else
-                    -- lit_pixels[c] = nil
-                    table.insert(remove_pixels, c)
-                end
-            end
 
-            for _,c in ipairs(remove_pixels) do
-                lit_pixels[c] = nil
+        for c,level in pairs(lit_pixels) do
+            local level_d = level - 1
+            local x = c % 128
+            local y = math.floor(c / 128)
+            screen.level(level_d)
+            screen.pixel(x, y)
+            screen.fill()
+            if level_d > 0 then
+                lit_pixels[c] = level_d
+            else
+                -- lit_pixels[c] = nil
+                table.insert(remove_pixels, c)
             end
+        end
+
+        for _,c in ipairs(remove_pixels) do
+            lit_pixels[c] = nil
+        end
         -- end
         -- fade_counter = (fade_counter + 1) % 2
     end
 }
 
+local function getDisplayCoords(body)
+    local x = body.pos[1] * zoom + 63
+    local y = body.pos[2] * zoom + 31
+    return x,y
+end
+
 drawBodies = {
     eachBody = function(draw)
         for i, body in ipairs(sim.bodies) do
-            draw(body)
+            local x,y = getDisplayCoords(body)
+            draw(body, x, y)
+        end
+    end,
+    eachBodyLitPixels = function(draw)
+        for i, body in ipairs(sim.bodies) do
+            local x,y = getDisplayCoords(body)
+            local r = 2
+            draw(body, x, y)
+            -- screen.circle(x, y, r)
+            screen.close()
+            screen.stroke()
+
+            local width = r*4
+            local ix = math.floor(x+0.5)
+            local iy = math.floor(y+0.5)
+            local wx = math.max(0, math.min(127, ix-(r*2)))
+            local wy = math.max(0, math.min(63, iy-(r*2)))
+            -- print("wx:"..wx..", wy:"..wy..", w:"..width)
+            addToLitPixels(wx, wy, width, width)
         end
     end,
     connectedPoints = function()
         for i=1, #sim.bodies - 1 do
             local bi = sim.bodies[i]
-            screen.move(bi.pos[1] * zoom + 63, bi.pos[2] * zoom + 31)
+            local xi,yi = getDisplayCoords(bi)
+            screen.move(xi, yi)
             screen.line(63,31)
             screen.close()
             screen.stroke()
             for j=i+1, #sim.bodies do
                 local bj = sim.bodies[j]
-                screen.move(bi.pos[1] * zoom + 63, bi.pos[2] * zoom + 31)
-                screen.line(bj.pos[1] * zoom + 63, bj.pos[2] * zoom + 31)
+                local xj,yj = getDisplayCoords(bj)
+                screen.move(xi, yi)
+                screen.line(xj, yj)
                 screen.close()
                 screen.stroke()
             end
         end
-        screen.move(sim.bodies[#sim.bodies].pos[1] * zoom + 63, sim.bodies[#sim.bodies].pos[2] * zoom + 31)
+        local x,y = getDisplayCoords(sim.bodies[#sim.bodies])
+        screen.move(x, y)
         screen.line(63,31)
         screen.close()
         screen.stroke()
-    end
+    end,
 }
 
 drawBody = {
-    circle = function(body)
+    circle = function(body, x, y)
         screen.level(15)
-        screen.circle(body.pos[1] * zoom + 63, body.pos[2] * zoom + 31, 2)
+        screen.circle(x, y, 2)
         screen.close()
         screen.fill()
         screen.stroke()
     end,
-    ring = function(body)
+    ring = function(body, x, y)
         screen.level(15)
-        screen.circle(body.pos[1] * zoom + 63, body.pos[2] * zoom + 31, 2.7)
+        screen.circle(x, y, 2.7)
         screen.close()
         screen.stroke()
     end
