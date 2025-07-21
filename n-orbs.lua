@@ -92,6 +92,8 @@ function init()
     }
     params:add(empty_param)
     table.insert(enc_params, empty_param)
+    params:hide(empty_param.id)
+    _menu.rebuild_params()
 
     params:add{
         id="init_sim",
