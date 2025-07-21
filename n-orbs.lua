@@ -1,20 +1,14 @@
 -- nbody: nbody sim
 -- by Evan Johnson
 -- implementation follows https://github.com/DeadlockCode/n-body
-Simulation = include("nbody-lua-lib/init")
+local Simulation = include("nbody-lua-lib/init")
 
-show_tps = true
-tps = 0
--- max_tps = 5000
-sim = Simulation:new()
-max_tps = 200
-fade_counter = 0
-ready_draw = true
-ready_sim = true
-prev_time = os.time()
-auto_damp = false
-ticks = 0
-frames = 0
+local show_tps = true
+local tps = 0
+local sim = Simulation:new()
+local ready_draw = true
+local ready_sim = true
+local auto_damp = false
 local fade_rate = 1
 
 function init()
@@ -719,7 +713,6 @@ end
 
 function updateSim()
     sim:update()
-    ticks = ticks + 1
 
     for n,callbacks in pairs(body_callbacks) do
         for _,callback in pairs(callbacks) do
