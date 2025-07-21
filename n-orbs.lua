@@ -10,6 +10,9 @@ local ready_draw = true
 local ready_sim = true
 local auto_damp = false
 local fade_rate = 1
+auto_adjust_funcs = {}
+local lit_pixels = {}
+local lit_pixel_count = 0
 
 function init()
     -- available traits to map outputs to
@@ -31,7 +34,6 @@ function init()
     --     end
     -- end
 
-    lit_pixels = {}
     -- given a body, take some action based on one of its traits
     trait_handlers = {
         crow = {
@@ -120,6 +122,26 @@ function init()
     table.insert(enc_params, viewport_zoom)
     params:add(viewport_zoom)
 
+    local auto_fade_param = {
+        id = "auto_fade",
+        name = "auto adjust fade",
+        type = "binary",
+        behavior = "toggle",
+        default = 1,
+        action = function(z)
+            if z == 1 then
+                auto_adjust_funcs["auto_fade"] = autoFadeUpdate
+                params:hide("fade_rate")
+                _menu.rebuild_params()
+            else
+                auto_adjust_funcs["auto_fade"] = nil
+                params:show("fade_rate")
+                _menu.rebuild_params()
+            end
+        end
+    }
+    params:add(auto_fade_param)
+
     local fade_rate_param = {
         id = "fade_rate",
         name = "fade rate",
@@ -133,6 +155,10 @@ function init()
     }
     table.insert(enc_params, fade_rate_param)
     params:add(fade_rate_param)
+    if params:get("auto_fade") == 1 then
+        params:hide("fade_rate")
+        _menu.rebuild_params()
+    end
 
     params:add{
         id="sim_tps",
@@ -340,8 +366,22 @@ function init()
     end, 899)
     screen_ping_metro:start()
 
+    -- for automatically adjusting parameters like energy damping and fade rate
+    auto_adjust_metro = metro.init(function()
+       for _,func in pairs(auto_adjust_funcs) do
+           func()
+       end
+    end, 1/2)
+    auto_adjust_metro:start()
+
     initSim()
     start_time = os.time()
+end
+
+function auto_adjust()
+    for i,v in pairs(auto_adjust_funcs) do
+        v()
+    end
 end
 
 function newTraitHandler(trait, target, out)
@@ -539,7 +579,6 @@ function addToLitPixels(x,y,l,w)
         local level = buf:byte(i)
         lit_pixels[c] = level
     end
-
 end
 
 fadeEffect = {
@@ -571,18 +610,10 @@ fadeEffect = {
         fade_counter = (fade_counter + 1) % 2
     end,
     darkenPixels = function()
-        -- if fade_counter == 0 then
         local remove_pixels = {}
-        local skip_val = 1
-        local counter = skip_val
+        lit_pixel_count = 0
 
         for c,level in pairs(lit_pixels) do
-            -- if counter == 0 then
-            --     counter = skip_val
-            -- else
-            --     counter = counter - 1
-            --     goto continue
-            -- end
             local level_d = level - fade_rate
             local x = c % 128
             local y = math.floor(c / 128)
@@ -590,22 +621,26 @@ fadeEffect = {
             screen.pixel(x, y)
             screen.fill()
             if level_d > 0 then
+                lit_pixel_count = lit_pixel_count + 1
                 lit_pixels[c] = level_d
             else
-                -- lit_pixels[c] = nil
                 table.insert(remove_pixels, c)
             end
-
-            ::continue::
         end
 
         for _,c in ipairs(remove_pixels) do
             lit_pixels[c] = nil
         end
-        -- end
-        -- fade_counter = (fade_counter + 1) % 2
     end
 }
+
+function autoFadeUpdate()
+    if lit_pixel_count > 250 and fade_rate < 3 then
+        params:delta("fade_rate", 1)
+    elseif lit_pixel_count < 75 and fade_rate > 1 then
+        params:delta("fade_rate", -1)
+    end
+end
 
 local function getDisplayCoords(body)
     local x = body.pos[1] * zoom + 63
@@ -694,21 +729,6 @@ function initSim()
     sim_metro = metro.init(updateSim,1/params:get("sim_tps"))
     sim_metro_id = sim_metro.id
     sim_metro:start()
-
-    if sim_energy_metro then
-        metro.free(sim_energy_metro.id)
-    end
-
-    energy_readings = {}
-    energy_baseline_readings = {}
-    energy_sum = 0
-    energy_avg = 0
-    energy_baseline = 0
-    energy_baseline_sum = 0
-    sim_energy_metro = metro.init(calculateSimEnergy, 1)
-    sim_energy_baseline_metro = metro.init(calculateSimEnergyBaseline, 1/20)
-    sim_energy_metro:start()
-    sim_energy_baseline_metro:start()
 end
 
 function updateSim()
@@ -721,6 +741,30 @@ function updateSim()
     end
 end
 
+function startMeasuringEnergy()
+    if sim_energy_metro == nil then
+        energy_readings = {}
+        energy_sum = 0
+        energy_avg = 0
+
+        sim_energy_metro = metro.init(calculateSimEnergy, 1)
+        sim_energy_metro:start()
+    else
+        print("sim energy metro already exists")
+    end
+end
+
+function stopMeasuringEnergy()
+    if sim_energy_metro ~= nil then
+        metro.free(sim_energy_metro.id)
+        energy_readings = nil
+        energy_sum = nil
+        energy_avg = nil
+    else
+        print("sim energy metro does not exist")
+    end
+end
+
 function calculateSimEnergy()
     local energy = sim:getTotalEnergy()
     energy_sum = energy_sum + energy
@@ -729,18 +773,30 @@ function calculateSimEnergy()
     if #energy_readings > 10 then
         energy_sum = energy_sum - table.remove(energy_readings,1)
         energy_avg = energy_sum / 10
+    end
+end
 
-        if auto_damp then
-            if energy_avg < energy_baseline * 1.75 and sim.dampening > -0.0010 then
-                sim.dampening = sim.dampening - 0.0001
-            elseif energy_avg > energy_baseline * 0.75 and sim.dampening < 0.0010 then
-                sim.dampening = sim.dampening + 0.0001
-            elseif sim.dampening > 0 then
-                sim.dampening = sim.dampening - 0.0001
-            elseif sim.dampening < 0 then
-                sim.dampening = sim.dampening + 0.0001
-            end
-        end
+function adjustEnergyDamping(energy_avg, energy_baseline)
+    if energy_avg < energy_baseline * 1.75 and sim.dampening > -0.0010 then
+        sim.dampening = sim.dampening - 0.0001
+    elseif energy_avg > energy_baseline * 0.75 and sim.dampening < 0.0010 then
+        sim.dampening = sim.dampening + 0.0001
+    elseif sim.dampening > 0 then
+        sim.dampening = sim.dampening - 0.0001
+    elseif sim.dampening < 0 then
+        sim.dampening = sim.dampening + 0.0001
+    end
+end
+
+function getEnergyBaseline()
+    if sim_energy_baseline_metro == nil then
+        energy_baseline_readings = {}
+        energy_baseline = 0
+        energy_baseline_sum = 0
+        sim_energy_baseline_metro = metro.init(calculateSimEnergyBaseline, 1/20)
+        sim_energy_baseline_metro:start()
+    else
+        print("sim baseline energy metro already exists")
     end
 end
 
@@ -752,6 +808,7 @@ function calculateSimEnergyBaseline()
     if #energy_baseline_readings == 20 then
         energy_baseline = energy_baseline_sum / 20
         metro.free(sim_energy_baseline_metro.id)
+        sim_energy_baseline_metro = nil
     end
 end
 
