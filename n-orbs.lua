@@ -15,6 +15,7 @@ prev_time = os.time()
 auto_damp = false
 ticks = 0
 frames = 0
+local fade_rate = 1
 
 function init()
     -- available traits to map outputs to
@@ -124,6 +125,20 @@ function init()
     }
     table.insert(enc_params, viewport_zoom)
     params:add(viewport_zoom)
+
+    local fade_rate_param = {
+        id = "fade_rate",
+        name = "fade rate",
+        type = "number",
+        min = 1,
+        max = 3,
+        default = 1,
+        action = function(v)
+            fade_rate = v
+        end
+    }
+    table.insert(enc_params, fade_rate_param)
+    params:add(fade_rate_param)
 
     params:add{
         id="sim_tps",
@@ -564,9 +579,17 @@ fadeEffect = {
     darkenPixels = function()
         -- if fade_counter == 0 then
         local remove_pixels = {}
+        local skip_val = 1
+        local counter = skip_val
 
         for c,level in pairs(lit_pixels) do
-            local level_d = level - 1
+            -- if counter == 0 then
+            --     counter = skip_val
+            -- else
+            --     counter = counter - 1
+            --     goto continue
+            -- end
+            local level_d = level - fade_rate
             local x = c % 128
             local y = math.floor(c / 128)
             screen.level(level_d)
@@ -578,6 +601,8 @@ fadeEffect = {
                 -- lit_pixels[c] = nil
                 table.insert(remove_pixels, c)
             end
+
+            ::continue::
         end
 
         for _,c in ipairs(remove_pixels) do
