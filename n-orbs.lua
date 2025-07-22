@@ -670,7 +670,7 @@ fadeEffect = {
 function autoFadeUpdate()
     if lit_pixel_count > 250 and fade_rate < 3 then
         params:delta("fade_rate", 1)
-    elseif lit_pixel_count < 75 and fade_rate > 1 then
+    elseif lit_pixel_count < 100 and fade_rate > 1 then
         params:delta("fade_rate", -1)
     end
 end
