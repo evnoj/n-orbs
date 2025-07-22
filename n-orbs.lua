@@ -2,12 +2,12 @@
 -- by Evan Johnson
 -- implementation follows https://github.com/DeadlockCode/n-body
 local Simulation = include("nbody-lua-lib/init")
+local pl = require("tools.pl")
 
 local show_tps = true
 local tps = 0
 local sim = Simulation:new()
 local ready_draw = true
-local ready_sim = true
 local auto_damp = false
 local fade_rate = 1
 auto_adjust_funcs = {}
@@ -102,6 +102,23 @@ function init()
         end
     }
 
+    params:add{
+        id="run_sim",
+        name="run sim",
+        type="binary",
+        behavior="toggle",
+        default=1,
+        action=function(z)
+            if sim_metro then
+                if z == 1 then
+                    sim_metro:start()
+                else
+                    sim_metro:stop()
+                end
+            end
+        end
+    }
+
     local viewport_zoom = {
         id="viewport_zoom",
         name="zoom",
@@ -153,7 +170,6 @@ function init()
             fade_rate = v
         end
     }
-    table.insert(enc_params, fade_rate_param)
     params:add(fade_rate_param)
     if params:get("auto_fade") == 1 then
         params:hide("fade_rate")
@@ -184,7 +200,7 @@ function init()
         type="control",
         controlspec=controlspec.def{
             min = 0.001,
-            max = 0.5,
+            max = 0.1,
             warp = 'exp',
             step = 0.001,
             default = 0.01,
@@ -289,6 +305,23 @@ function init()
             end
         end
     }
+
+    sim_files = pl.dir.getfiles(_path.data.."n-orbs", "*.json")
+    for i=1,#sim_files do
+        local file = sim_files[i]
+        file = pl.path.splitext(pl.path.basename(file))
+        sim_files[i] = file
+    end
+    table.insert(sim_files, 1, "none")
+
+    local bodies_file_param = {
+        id="bodies_file",
+        name="body file",
+        type="option",
+        options=sim_files,
+        default=1
+    }
+    params:add(bodies_file_param)
 
     local enc_options = {}
     enc_option_to_id = {}
@@ -726,9 +759,18 @@ function initSim()
     sim.integrator = integrator_choices[params:get("sim_integrator")]
     sim.softening = params:get("sim_softening")
     sim.dampening = params:get("sim_dampening")
+
+    local bodies_file = params:string("bodies_file")
+    if bodies_file ~= "none" then
+        local path = _path.data.."n-orbs/"..bodies_file..".json"
+        sim.bodies = Simulation:load_bodies_from_file(path)
+    end
+
     sim_metro = metro.init(updateSim,1/params:get("sim_tps"))
     sim_metro_id = sim_metro.id
-    sim_metro:start()
+    if params:get("run_sim") == 1 then
+        sim_metro:start()
+    end
 end
 
 function updateSim()
@@ -823,16 +865,16 @@ function readyDraw()
     ready_draw = true
 end
 
-function readySim()
-    ready_sim = true
-end
-
 function tableSize(t)
     local n = 0
     for _,_ in pairs(t) do
         n = n + 1
     end
     return n
+end
+
+function getSim()
+    return sim
 end
 
 function enc(n, delta)
