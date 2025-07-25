@@ -3,6 +3,7 @@
 -- implementation follows https://github.com/DeadlockCode/n-body
 local Simulation = include("nbody-lua-lib/init")
 local pl = require("tools.pl")
+local lunajson = require("tools.lunajson")
 
 local show_tps = true
 local tps = 0
@@ -306,22 +307,59 @@ function init()
         end
     }
 
-    sim_files = pl.dir.getfiles(_path.data.."n-orbs", "*.json")
-    for i=1,#sim_files do
-        local file = sim_files[i]
-        file = pl.path.splitext(pl.path.basename(file))
-        sim_files[i] = file
+    local function update_sim_file_options()
+        sim_files = pl.dir.getfiles(_path.data.."n-orbs", "*.json")
+        for i=1,#sim_files do
+            local file = sim_files[i]
+            file = pl.path.splitext(pl.path.basename(file))
+            sim_files[i] = file
+        end
+        table.sort(sim_files)
+        table.insert(sim_files, 1, "none")
     end
-    table.insert(sim_files, 1, "none")
+    update_sim_file_options()
 
     local bodies_file_param = {
         id="bodies_file",
         name="body file",
         type="option",
         options=sim_files,
-        default=1
+        default=1,
+        action=function(opt)
+            params:set("bodies_file_save_name", params:string("bodies_file"))
+        end
     }
     params:add(bodies_file_param)
+
+    local bodies_file_save_name_param = {
+        id = "bodies_file_save_name",
+        name = "save as...",
+        type = "text",
+        text = params:string("bodies_file"),
+    }
+    params:add(bodies_file_save_name_param)
+
+    local bodies_file_save_trig_param = {
+        id="bodies_file_save_trig",
+        name = "  ↳do save",
+        type="binary",
+        behavior="trigger",
+        action=function()
+            local filename = params:get("bodies_file_save_name")
+            if filename == "none" then
+                return
+            else
+                filename = _path.data.."n-orbs/"..filename..".json"
+                pl.file.write(filename, lunajson.encode(sim))
+            end
+
+            update_sim_file_options()
+            local bodies_file_p = params:lookup_param("bodies_file")
+            bodies_file_p.options = sim_files
+            bodies_file_p.count = #sim_files
+        end
+    }
+    params:add(bodies_file_save_trig_param)
 
     local enc_options = {}
     enc_option_to_id = {}
@@ -384,6 +422,7 @@ function init()
         end
     end
 
+    params:default()
     params:bang()
 
     screen.aa(1)
@@ -668,7 +707,7 @@ fadeEffect = {
 }
 
 function autoFadeUpdate()
-    if lit_pixel_count > 250 and fade_rate < 3 then
+    if lit_pixel_count > 300 and fade_rate < 3 then
         params:delta("fade_rate", 1)
     elseif lit_pixel_count < 100 and fade_rate > 1 then
         params:delta("fade_rate", -1)
