@@ -1,7 +1,7 @@
 -- nbody: nbody sim
 -- by Evan Johnson
 -- implementation follows https://github.com/DeadlockCode/n-body
-local Simulation = include("nbody-lua-lib/init")
+local Simulation = include("lib/nbody-lua-lib/init")
 local pl = require("tools.pl")
 local lunajson = require("tools.lunajson")
 
