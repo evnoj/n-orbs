@@ -1,0 +1,3 @@
+[submodule "lib/nbody-lua-lib"]
+	path = lib/nbody-lua-lib
+	url = https://github.com/evnoj/nbody-lua-lib.git
